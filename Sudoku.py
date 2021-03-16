@@ -204,6 +204,7 @@ class Sudoku:
     def threaded_backtrack_solve(self):
         """ A threaded version of the backtrack_solve """
         th = Thread(target=self.backtrack_solve, args=[0, False])
+        th.daemon = True
         th.start()
 
     def remove_n_pieces_from_board(self, n: int):
@@ -256,6 +257,7 @@ class Sudoku:
     def threaded_populate_board(self):
         """ a threaded version of the populate_board function """
         th = Thread(target=self.populate_board)
+        th.daemon = True
         th.start()
 
     # Mathematically determine which square was clicked, then highlight the cross-section
