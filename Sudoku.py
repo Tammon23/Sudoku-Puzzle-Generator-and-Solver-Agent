@@ -111,7 +111,7 @@ class Sudoku:
         self.create_game_board()
 
         # called to make the board
-        self.threaded_populate_board()
+        #self.threaded_populate_board()
 
         # called to solve the board
         # self.threaded_backtrack_solve()
@@ -442,6 +442,12 @@ root = tk.Tk()
 root.title("Sudoku")
 
 sudoku = Sudoku(root)
+
+solve_btn = Button(root, text='Solve', command=sudoku.threaded_backtrack_solve)
+solve_btn.pack()
+
+populate_btn = Button(root, text='Populate', command=sudoku.threaded_populate_board)
+populate_btn.pack()
 
 # Testing code. Don't delete this guys, just comment it out until stuff is implemented
 sudoku.highlight_sub_grid(1, 0)
