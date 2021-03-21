@@ -26,14 +26,15 @@ class Sudoku:
 
         def draw(self, anchor_x, anchor_y, square_x, square_y, square_size, square_fill):
             self.label.config(bg=square_fill)
-            if self.rect_id != -1:
-                self.canvas.delete(self.rect_id)
+            if self.rect_id == -1:
+                self.rect_id = self.canvas.create_rectangle(anchor_x + square_x * square_size,
+                                                            anchor_y + square_y * square_size,
+                                                            anchor_x + (square_x + 1) * square_size,
+                                                            anchor_y + (square_y + 1) * square_size, fill=square_fill,
+                                                            outline="black")
 
-            self.rect_id = self.canvas.create_rectangle(anchor_x + square_x * square_size,
-                                                        anchor_y + square_y * square_size,
-                                                        anchor_x + (square_x + 1) * square_size,
-                                                        anchor_y + (square_y + 1) * square_size, fill=square_fill,
-                                                        outline="black")
+            else:
+                self.canvas.itemconfig(self.rect_id, fill=square_fill)
 
         def display_notes(self, square_size):
             # Reset a couple of things
@@ -85,7 +86,6 @@ class Sudoku:
 
         self.square_size = 55
 
-        self.lines = []
         self.current_cross_section = None
 
         canvas_size = self.anchor_x + self.anchor_y + 9 * self.square_size
@@ -102,36 +102,22 @@ class Sudoku:
         self.root.bind("<Down>", lambda event: self.arrow_pressed(event))
 
         self.canvas.pack()
-
         # the delay it takes for the ai to decide when to display
         # the next value during generation, and solving
         self.build_delay = 0.05
         self.solve_delay = 0.05
+        self.highlight_delay = 0.05
+        self.use_notes = True
         self.sleep_interval = self.solve_delay
         self.create_game_board()
 
-        # called to make the board
-        #self.threaded_populate_board()
+    def get_row(self, rIndex: int, cIndex: int) -> set:
+        """ Returns the row at index rIndex of the board, ignoring the value at rIndex, cIndex as a set """
+        return {value.value if i != cIndex else -1 for i, value in enumerate(self.game_board[rIndex])}
 
-        # called to solve the board
-        # self.threaded_backtrack_solve()
-
-    def print_board(self):
-        print("---------------------------------")
-        for i in range(9):
-            for j in range(9):
-                print(self.game_board[i][j].value, end=" ")
-
-            print()
-        print("---------------------------------")
-
-    def get_row(self, rIndex: int) -> set:
-        """ Returns the row at index rIndex of the board of the board as a set """
-        return {value.value for value in self.game_board[rIndex]}
-
-    def get_col(self, cIndex: int) -> set:
-        """ Returns the column at index cIndex of the board of the board as a set"""
-        return {row[cIndex].value for row in self.game_board}
+    def get_col(self, rIndex: int, cIndex: int) -> set:
+        """ Returns the column at index cIndex of the board, ignoring the value at rIndex, cIndex as a set """
+        return {row[cIndex].value if i != rIndex else -1 for i, row in enumerate(self.game_board)}
 
     def get_box(self, rIndex: int, cIndex: int) -> set:
         """ Returns the box at tile index rIndex, cIndex of the board as a set"""
@@ -139,8 +125,9 @@ class Sudoku:
         box_c = cIndex // 3 * 3
         box = set()
         for subrow in range(box_r, box_r + 3):
-            for digit in self.game_board[subrow][box_c:box_c + 3]:
-                box.add(digit.value)
+            for i, digit in enumerate(self.game_board[subrow][box_c:box_c + 3]):
+                if subrow != rIndex and i != cIndex:
+                    box.add(digit.value)
 
         return box
 
@@ -169,12 +156,35 @@ class Sudoku:
         # obtaining the possible values that can be used on the empty tile
         # for it to still be considered a valid board
         domain = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+        if self.use_notes:
 
-        what_to_remove = self.get_row(emptyR)
-        what_to_remove.update(self.get_col(emptyC))
-        what_to_remove.update(self.get_box(emptyR, emptyC))
+            self.reset_highlights()
+            self.highlight_row(emptyR)
+            self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
+            domain -= self.get_row(emptyR, emptyC)
+            self.update_note(emptyR, emptyC, domain)
+            sleep(self.highlight_delay)
 
-        domain -= what_to_remove
+            self.reset_highlights()
+            self.highlight_column(emptyC)
+            self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
+            domain -= self.get_col(emptyR, emptyC)
+            self.update_note(emptyR, emptyC, domain)
+            sleep(self.highlight_delay)
+
+            self.reset_highlights()
+            self.highlight_sub_grid(emptyR // 3, emptyC // 3)
+            self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
+            domain -= self.get_box(emptyR, emptyC)
+            self.update_note(emptyR, emptyC, domain)
+            sleep(self.highlight_delay)
+
+            self.reset_highlights()
+
+        else:
+            domain -= self.get_row(emptyR, emptyC)
+            domain -= self.get_col(emptyR, emptyC)
+            domain -= self.get_box(emptyR, emptyC)
 
         # if there are no possible values, then we should backtrack
         if len(domain) == 0:
@@ -325,12 +335,14 @@ class Sudoku:
 
             i = i + self.square_size
 
-        self.draw_outer_lines()
 
         self.game_board = np.zeros((9, 9), dtype=object)
         for i in range(0, 9):
             for j in range(0, 9):
                 self.game_board[i][j] = self.create_tile(i, j)
+                self.game_board[i][j].draw(self.anchor_x, self.anchor_y, i, j, self.square_size, "white")
+
+        self.draw_outer_lines()
 
         # self.game_board[2][3].notes = [1, 1, 1, 1, 1, 1, 1, 1, 1]
         # self.game_board[2][3].display_notes(self.square_size)
@@ -354,41 +366,26 @@ class Sudoku:
     # Because of overlapping when filling a rectangle, the thicker lines need to be drawn constantly.
     # Thus, here's the function for it
     def draw_outer_lines(self):
-        if self.lines != []:
-            for line in self.lines:
-                self.canvas.delete(line)
-            self.lines = []
-
         # I'm not writing this 40 times
         anchor_x = self.anchor_x
         anchor_y = self.anchor_y
         square_size = self.square_size
 
         # The thicker lines outline the 3x3 subgrids
-        self.lines.append(self.canvas.create_line(anchor_x + 3 * square_size, anchor_y, anchor_x + 3 * square_size,
-                                                  anchor_y + 9 * square_size, width=3))
-        self.lines.append(self.canvas.create_line(anchor_x + 6 * square_size, anchor_y, anchor_x + 6 * square_size,
-                                                  anchor_y + 9 * square_size, width=3))
+        self.canvas.create_line(anchor_x + 3 * square_size, anchor_y, anchor_x + 3 * square_size, anchor_y + 9 * square_size, width=3)
+        self.canvas.create_line(anchor_x + 6 * square_size, anchor_y, anchor_x + 6 * square_size, anchor_y + 9 * square_size, width=3)
 
-        self.lines.append(self.canvas.create_line(anchor_x, anchor_y + 3 * square_size, anchor_x + 9 * square_size,
-                                                  anchor_y + 3 * square_size, width=3))
-        self.lines.append(self.canvas.create_line(anchor_x, anchor_y + 6 * square_size, anchor_x + 9 * square_size,
-                                                  anchor_y + 6 * square_size, width=3))
+        self.canvas.create_line(anchor_x, anchor_y + 3 * square_size, anchor_x + 9 * square_size, anchor_y + 3 * square_size, width=3)
+        self.canvas.create_line(anchor_x, anchor_y + 6 * square_size, anchor_x + 9 * square_size, anchor_y + 6 * square_size, width=3)
 
-        self.lines.append(
-            self.canvas.create_rectangle(anchor_x, anchor_y, anchor_x + 9 * square_size, anchor_y + 9 * square_size,
-                                         width=3))
+        self.canvas.create_rectangle(anchor_x, anchor_y, anchor_x + 9 * square_size, anchor_y + 9 * square_size, width=3)
 
     # If override is None, simply toggle the highlight. Otherwise, set it to override
     def highlight_square(self, square_x, square_y, color="#cfffff", override=None):
-        self.highlights[square_x][square_y] = override if override is not None else not self.highlights[square_x][
-            square_y]
+        self.highlights[square_x][square_y] = override if override is not None else not self.highlights[square_x][square_y]
 
         square_fill = color if self.highlights[square_x][square_y] == True else "white"
-        self.game_board[square_x][square_y].draw(self.anchor_x, self.anchor_y, square_x, square_y, self.square_size,
-                                                 square_fill)
-
-        self.draw_outer_lines()
+        self.game_board[square_x][square_y].draw(self.anchor_x, self.anchor_y, square_x, square_y, self.square_size, square_fill)
 
     def highlight_row(self, row):
         for j in range(0, 9):
@@ -450,7 +447,7 @@ populate_btn = Button(root, text='Populate', command=sudoku.threaded_populate_bo
 populate_btn.pack()
 
 # Testing code. Don't delete this guys, just comment it out until stuff is implemented
-sudoku.highlight_sub_grid(1, 0)
+# sudoku.highlight_sub_grid(1, 0)
 
 '''
 
