@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Button, Label, Entry, Listbox, Canvas, BooleanVar, IntVar, DoubleVar, filedialog, simpledialog, \
-    Checkbutton, Menu, messagebox, Scale, Radiobutton, OptionMenu, StringVar
+    Checkbutton, Menu, messagebox, Scale, Radiobutton, OptionMenu, StringVar, Toplevel
 from tkinter.ttk import Notebook, Frame, Treeview, PanedWindow
 
 import numpy as np
@@ -433,12 +433,48 @@ class Sudoku:
             for j in range(0, 9):
                 if self.highlights[i][j]:
                     self.highlight_square(i, j, override=False)
+                    
+    #A popup with instructions on how to run
+    #I know it looks weird cause the text is not indented like the function, but thats how to make it look normal in the text box so
+    def how_to_use_text(self):
+
+        text = """There are two different ways to populate the board:
+1. Enter the values of a board yourself. 
+2. Click the 'Populate' button. Please be patient as it might take some time. It goes slow to demonstrate the process of populating.
+
+Once the board is populated it can be solved in two ways:
+1. You can solve it! 
+2. Click the 'Solve' button. Please be patient as it may take some time. It is slow to demonstrate how it is solved
+
+Entering values on the board:
+This can be done by clicking on the square you wish to enter a number into, then click that number on your keyboard. Arrow keys can be used to move around on the grid. 
+To remove a number, simply go to that square and type the number a second time. 
+Multiple numbers can be entered into the same square to make 'notes'
+
+Please do not click the 'Populate' or 'Solve' buttons while the board is populating or solving"""
+        messagebox.showinfo("How to Use", text)
+    
+    #This can be removed before we hand it in 
+    #I tried adding a difficulty (like if its easy it removes 30 nums from the populated board, medium removes 45, etc.)
+    #I had the populate button call this choose_difficulty function
+    # Anyway, it kept crashing and idk why so i gave up
+''' def choose_difficulty(self):
+        difficulty_window = Toplevel(root)
+        easy_btn = Button(difficulty_window, text="Easy", command=self.threaded_populate_board(30))
+        easy_btn.pack()
+        normal_btn = Button(difficulty_window, text="Normal", command=self.threaded_populate_board(45))
+        normal_btn.pack()
+        hard_btn = Button(difficulty_window, text="Hard", command=self.threaded_populate_board(45))
+        hard_btn.pack()'''
 
 
 root = tk.Tk()
 root.title("Sudoku")
 
 sudoku = Sudoku(root)
+
+help_btn = Button(root, text='How to Use', command=sudoku.how_to_use_text)
+help_btn.pack()
 
 solve_btn = Button(root, text='Solve', command=sudoku.threaded_backtrack_solve)
 solve_btn.pack()
