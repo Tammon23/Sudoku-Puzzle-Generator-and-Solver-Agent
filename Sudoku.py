@@ -36,9 +36,9 @@ class Sudoku:
             else:
                 self.canvas.itemconfig(self.rect_id, fill=square_fill)
 
-        def display_notes(self, square_size):
+        def display_notes(self, square_size, note_colour = "black"):
             # Reset a couple of things
-            self.label.config(font=("TkDefaultFont",))
+            self.label.config(font=("TkDefaultFont",), fg = note_colour)
             self.value = -1
 
             count = 0
@@ -51,7 +51,7 @@ class Sudoku:
                 self.label.config(text="         \n         \n         ")
 
             elif count == 1:
-                self.label.config(font=("TkDefaultFont", ceil(square_size / 2)))
+                self.label.config(font=("TkDefaultFont", ceil(square_size / 2)), fg = note_colour)
                 number = -1
                 for i in range(0, 9):
                     if self.notes[i]:
@@ -106,7 +106,7 @@ class Sudoku:
         # the next value during generation, and solving
         self.build_delay = 0.05
         self.solve_delay = 0.05
-        self.highlight_delay = 0.05
+        self.highlight_delay = 0.06
         self.use_notes = True
         self.sleep_interval = self.solve_delay
         self.create_game_board()
@@ -141,12 +141,11 @@ class Sudoku:
 
         return -1, -1
 
-    def backtrack_solve(self, startR: int, random_select: bool = False) -> bool:
+    def backtrack_solve(self, startR: int, random_select: bool = False, populate = False) -> bool:
         """ Using a backtracking agent, solves a sudoku board
             :param startR The row the backtracking algorithm starts working at
             :param random_select if true then values of each tile are chosen randomly to test
         """
-
         # getting the next tile to work on if there exists one
         emptyR, emptyC = self.get_next_empty_tile(startR)
 
@@ -158,26 +157,35 @@ class Sudoku:
         domain = {1, 2, 3, 4, 5, 6, 7, 8, 9}
         if self.use_notes:
 
-            self.reset_highlights()
-            self.highlight_row(emptyR)
-            self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
+            if populate:
+                self.reset_highlights()
+                self.highlight_row(emptyR)
+                self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
             domain -= self.get_row(emptyR, emptyC)
-            self.update_note(emptyR, emptyC, domain)
-            sleep(self.highlight_delay)
+            if populate:
+                self.update_note(emptyR, emptyC, domain, note_colour = "black")
+            if populate:
+                sleep(self.highlight_delay)
 
-            self.reset_highlights()
-            self.highlight_column(emptyC)
-            self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
+            if populate:
+                self.reset_highlights()
+                self.highlight_column(emptyC)
+                self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
             domain -= self.get_col(emptyR, emptyC)
-            self.update_note(emptyR, emptyC, domain)
-            sleep(self.highlight_delay)
+            if populate:
+                self.update_note(emptyR, emptyC, domain, note_colour = "black")
+            if populate:
+                sleep(self.highlight_delay)
 
-            self.reset_highlights()
-            self.highlight_sub_grid(emptyR // 3, emptyC // 3)
-            self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
+            if populate:
+                self.reset_highlights()
+                self.highlight_sub_grid(emptyR // 3, emptyC // 3)
+                self.highlight_square(emptyR, emptyC, color="#8de6e6", override=True)
             domain -= self.get_box(emptyR, emptyC)
-            self.update_note(emptyR, emptyC, domain)
-            sleep(self.highlight_delay)
+            if populate:
+                self.update_note(emptyR, emptyC, domain, note_colour = "black")
+            if populate:
+                sleep(self.highlight_delay)
 
             self.reset_highlights()
 
@@ -197,23 +205,28 @@ class Sudoku:
             shuffle(domain)
 
         for value in domain:
-            self.update_note(emptyR, emptyC, value)
-            sleep(self.sleep_interval)
+            if populate:
+                self.update_note(emptyR, emptyC, value, note_colour = "red")
+            else:
+                self.update_note(emptyR, emptyC, value, note_colour = "black")
+
+            if populate:
+                sleep(self.sleep_interval)
 
             # the current sequence of values gives us a valid board
             # then do not modify the state of the board, and return
-            if self.backtrack_solve(emptyR):
+            if self.backtrack_solve(emptyR, random_select, populate):
                 return True
 
         # if we tried all possible values for the tile but could not find
         # a valid board, reset tile to empty then backtrack
-        self.update_note(emptyR, emptyC, -1)
+        self.update_note(emptyR, emptyC, -1, note_colour = "black")
 
         return False
 
-    def threaded_backtrack_solve(self):
+    def threaded_backtrack_solve(self, delay = True):
         """ A threaded version of the backtrack_solve """
-        th = Thread(target=self.backtrack_solve, args=[0, False])
+        th = Thread(target=self.backtrack_solve, args=[0, False, delay])
         th.daemon = True
         th.start()
 
@@ -236,7 +249,7 @@ class Sudoku:
             n -= 1
             sleep(self.sleep_interval)
 
-    def update_note(self, rIndex: int, cIndex: int, values: iter):
+    def update_note(self, rIndex: int, cIndex: int, values: iter, note_colour = "red"):
         """ Used to update which number(s) are being displayed on a tile """
         notes = [0, 0, 0, 0, 0, 0, 0, 0, 0]
         if type(values) == int:
@@ -247,26 +260,26 @@ class Sudoku:
                 if v != -1:
                     notes[v - 1] = 1
         self.game_board[rIndex][cIndex].notes = notes
-        self.game_board[rIndex][cIndex].display_notes(self.square_size)
+        self.game_board[rIndex][cIndex].display_notes(self.square_size, note_colour)
 
-    def populate_board(self):
+    def populate_board(self, n = 30):
         """ Used to fill the board with a solvable sudoku game """
 
         # setting the sleep interval to the build delay
         # temp until a slider is added
-        self.sleep_interval = self.build_delay
+        #self.sleep_interval = self.build_delay
 
         # calling our solver to fill in the board, choosing which value
         # to do randomly
         self.backtrack_solve(0, True)
-        self.remove_n_pieces_from_board(30)
+        self.remove_n_pieces_from_board(n)
 
         # resetting the delay to the default, the solve_delay
-        self.sleep_interval = self.solve_delay
+        #self.sleep_interval = self.solve_delay
 
-    def threaded_populate_board(self):
+    def threaded_populate_board(self, n = 30):
         """ a threaded version of the populate_board function """
-        th = Thread(target=self.populate_board)
+        th = Thread(target=self.populate_board, args = [n])
         th.daemon = True
         th.start()
 
@@ -344,12 +357,6 @@ class Sudoku:
 
         self.draw_outer_lines()
 
-        # self.game_board[2][3].notes = [1, 1, 1, 1, 1, 1, 1, 1, 1]
-        # self.game_board[2][3].display_notes(self.square_size)
-        # self.game_board[5][6].notes = [0, 0, 0, 0, 1, 0, 0, 0, 0]
-        # self.game_board[5][6].display_notes(self.square_size)
-        # self.game_board[8][3].notes = [1, 0, 1, 1, 1, 0, 0, 0, 1]
-        # self.game_board[8][3].display_notes(self.square_size)
         self.highlights = np.zeros((9, 9))
 
     def create_tile(self, row, column):
@@ -454,19 +461,14 @@ Multiple numbers can be entered into the same square to make 'notes'
 Please do not click the 'Populate' or 'Solve' buttons while the board is populating or solving"""
         messagebox.showinfo("How to Use", text)
     
-    #This can be removed before we hand it in 
-    #I tried adding a difficulty (like if its easy it removes 30 nums from the populated board, medium removes 45, etc.)
-    #I had the populate button call this choose_difficulty function
-    # Anyway, it kept crashing and idk why so i gave up
-''' def choose_difficulty(self):
+    def choose_difficulty(self):
         difficulty_window = Toplevel(root)
-        easy_btn = Button(difficulty_window, text="Easy", command=self.threaded_populate_board(30))
+        easy_btn = Button(difficulty_window, text="Easy", command=lambda: [self.threaded_populate_board(30), difficulty_window.destroy()])
         easy_btn.pack()
-        normal_btn = Button(difficulty_window, text="Normal", command=self.threaded_populate_board(45))
+        normal_btn = Button(difficulty_window, text="Normal", command=lambda:  [self.threaded_populate_board(45), difficulty_window.destroy()])
         normal_btn.pack()
-        hard_btn = Button(difficulty_window, text="Hard", command=self.threaded_populate_board(45))
-        hard_btn.pack()'''
-
+        hard_btn = Button(difficulty_window, text="Hard", command=lambda: [self.threaded_populate_board(60), difficulty_window.destroy()])
+        hard_btn.pack()
 
 root = tk.Tk()
 root.title("Sudoku")
@@ -479,29 +481,7 @@ help_btn.pack()
 solve_btn = Button(root, text='Solve', command=sudoku.threaded_backtrack_solve)
 solve_btn.pack()
 
-populate_btn = Button(root, text='Populate', command=sudoku.threaded_populate_board)
+populate_btn = Button(root, text='Populate', command=sudoku.choose_difficulty)
 populate_btn.pack()
 
-# Testing code. Don't delete this guys, just comment it out until stuff is implemented
-# sudoku.highlight_sub_grid(1, 0)
-
-'''
-
-
-temp = Label(root, text = "5", bg = "white")
-temp.config(font = ("TkDefaultFont", ceil(square_size / 2)))
-temp.place(x = 0, y = 0)
-root.update()
-
-label_width = temp.winfo_width()
-label_height = temp.winfo_height()
-
-padding_x = (square_size - label_width) / 2
-padding_y = (square_size - label_height) / 2
-
-temp.place(x = anchor_x + padding_x + 1 * square_size, y = anchor_y + padding_y + 2 * square_size)
-#Testing code ends here
-
-main_canvas.pack()
-'''
 root.mainloop()
